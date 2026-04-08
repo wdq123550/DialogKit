@@ -129,7 +129,7 @@ public struct DialogAnimation {
 // MARK: - DialogWrapper
 
 /// 内部包装器，为每个弹窗分配唯一 ID 以驱动 SwiftUI 差异更新。
-struct DialogWrapper: Identifiable {
+internal struct DialogWrapper: Identifiable {
     let id = UUID()
     let content: any DialogPresentable
 }
@@ -139,43 +139,50 @@ struct DialogWrapper: Identifiable {
 /// 基于队列的弹窗管理器。
 ///
 /// 同一时刻最多展示一个弹窗，后续弹窗会排队等待。
-/// 使用 `@Observable` 驱动 SwiftUI 视图刷新，需要 iOS 17+
+/// 使用 `@Observable` 驱动 SwiftUI 视图刷新，需要 iOS 17+。
 ///
 /// **基本用法：**
 /// ```swift
-/// // 在根视图挂载覆盖层
 /// ContentView()
-///     .overlay { DialogManager.shared.overlayView }
+///     .overlay { DialogManager.shared.dialogLayer }
 ///
-/// // 展示弹窗
 /// DialogManager.shared.show(MyDialog())
 /// ```
 @MainActor
 @Observable
 public final class DialogManager {
 
-    // MARK: - Public Properties
-
     /// 全局单例。
     public static let shared = DialogManager()
 
+    /// 当前正在展示的弹窗包装器。
+    private(set) var currentWrapper: DialogWrapper?
+
+    /// 等待展示的弹窗队列。
+    private var queue: [DialogWrapper] = []
+
+    private init() {}
+}
+
+// MARK: - Public API
+
+public extension DialogManager {
+
     /// 当前弹窗的动画时长；若无弹窗则返回默认值 `0.25`。
-    public var currentAnimationDuration: CGFloat {
+    var currentAnimationDuration: CGFloat {
         currentWrapper?.content.dialogConfig.animation.duration ?? 0.25
     }
 
     /// 当前是否有弹窗正在展示。
-    public var isPresenting: Bool {
+    var isPresenting: Bool {
         currentWrapper != nil
     }
-
-    // MARK: - Public Methods
 
     /// 将弹窗加入队列并展示。
     ///
     /// 如果当前已有弹窗正在展示，新弹窗将排队等待，直到前面的弹窗被关闭后自动展示。
     /// - Parameter dialog: 要展示的弹窗视图（需遵守 `DialogPresentable`）。
-    public func show(_ dialog: any DialogPresentable) {
+    func show(_ dialog: any DialogPresentable) {
         let wrapper = DialogWrapper(content: dialog)
         queue.append(wrapper)
         if currentWrapper == nil {
@@ -188,7 +195,7 @@ public final class DialogManager {
     /// 新弹窗会被插入队列最前方，当前弹窗关闭后立即展示。
     /// 如果当前没有弹窗，则等同于调用 ``show(_:)``。
     /// - Parameter dialog: 要插队展示的弹窗视图。
-    public func dismissCurrentAndShow(_ dialog: any DialogPresentable) {
+    func dismissCurrentAndShow(_ dialog: any DialogPresentable) {
         guard currentWrapper != nil else {
             show(dialog)
             return
@@ -201,7 +208,7 @@ public final class DialogManager {
     /// 关闭当前正在展示的弹窗。
     ///
     /// 关闭后会自动展示队列中的下一个弹窗（如果有）。
-    public func dismissCurrent() {
+    func dismissCurrent() {
         guard let wrapper = currentWrapper else { return }
         let dialog = wrapper.content
 
@@ -218,7 +225,7 @@ public final class DialogManager {
     }
 
     /// 关闭当前弹窗并清空整个等待队列，不带动画。
-    public func dismissAll() {
+    func dismissAll() {
         queue.removeAll()
 
         guard let wrapper = currentWrapper else { return }
@@ -231,7 +238,7 @@ public final class DialogManager {
 
     /// 弹窗覆盖层视图，需挂载到应用根视图上。
     @ViewBuilder
-    public var overlayView: some View {
+    var dialogLayer: some View {
         Color.clear.overlay {
             dimmingView.overlay {
                 contentView
@@ -239,24 +246,14 @@ public final class DialogManager {
         }
         .ignoresSafeArea()
     }
-
-    // MARK: - Private Properties
-
-    /// 当前正在展示的弹窗包装器。
-    private(set) var currentWrapper: DialogWrapper?
-
-    /// 等待展示的弹窗队列。
-    private var queue: [DialogWrapper] = []
-
-    private init() {}
 }
 
-// MARK: - Private Queue Logic
+// MARK: - Private Implementation
 
-extension DialogManager {
+private extension DialogManager {
 
     /// 从队列中取出下一个弹窗并以动画展示。
-    private func showNext() {
+    func showNext() {
         guard !queue.isEmpty else { return }
         let next = queue.removeFirst()
 
@@ -268,15 +265,10 @@ extension DialogManager {
             self.currentWrapper?.content.didAppear()
         }
     }
-}
-
-// MARK: - Private View Builders
-
-extension DialogManager {
 
     /// 半透明遮罩背景。
     @ViewBuilder
-    private var dimmingView: some View {
+    var dimmingView: some View {
         if let wrapper = currentWrapper {
             Color(uiColor: wrapper.content.dialogConfig.dimmingColor)
                 .ignoresSafeArea()
@@ -285,7 +277,7 @@ extension DialogManager {
 
     /// 弹窗内容视图，包含转场、位置和内边距。
     @ViewBuilder
-    private var contentView: some View {
+    var contentView: some View {
         if let wrapper = currentWrapper {
             AnyView(wrapper.content)
                 .id(wrapper.id)
@@ -298,14 +290,9 @@ extension DialogManager {
                 )
         }
     }
-}
-
-// MARK: - Private Transition & Layout Helpers
-
-extension DialogManager {
 
     /// 根据配置生成非对称转场（出场与退场可不同）。
-    private func buildTransition(for dialog: any DialogPresentable) -> AnyTransition {
+    func buildTransition(for dialog: any DialogPresentable) -> AnyTransition {
         let t = dialog.dialogConfig.transition
         return .asymmetric(
             insertion: swiftUITransition(t.appear),
@@ -314,7 +301,7 @@ extension DialogManager {
     }
 
     /// 将 `DialogTransitionEdge` 映射为 SwiftUI `AnyTransition`。
-    private func swiftUITransition(_ edge: DialogTransitionEdge) -> AnyTransition {
+    func swiftUITransition(_ edge: DialogTransitionEdge) -> AnyTransition {
         switch edge {
         case .top: .move(edge: .top)
         case .bottom: .move(edge: .bottom)
@@ -323,7 +310,7 @@ extension DialogManager {
     }
 
     /// 将 `DialogPosition` 映射为 SwiftUI `Alignment`。
-    private func alignment(for dialog: any DialogPresentable) -> Alignment {
+    func alignment(for dialog: any DialogPresentable) -> Alignment {
         switch dialog.dialogConfig.position {
         case .center: .center
         case .top: .top
@@ -332,7 +319,7 @@ extension DialogManager {
     }
 
     /// 根据 `DialogPosition` 计算安全区域内边距。
-    private func paddingInsets(for dialog: any DialogPresentable) -> EdgeInsets {
+    func paddingInsets(for dialog: any DialogPresentable) -> EdgeInsets {
         switch dialog.dialogConfig.position {
         case .top(let safe): safe ? .init(top: safeAreaTop, leading: 0, bottom: 0, trailing: 0) : .init()
         case .bottom(let safe): safe ? .init(top: 0, leading: 0, bottom: safeAreaBottom, trailing: 0) : .init()
@@ -341,14 +328,14 @@ extension DialogManager {
     }
 
     /// 当前 key window 的顶部安全区域高度。
-    private var safeAreaTop: CGFloat {
+    var safeAreaTop: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.top ?? 0
     }
 
     /// 当前 key window 的底部安全区域高度。
-    private var safeAreaBottom: CGFloat {
+    var safeAreaBottom: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.bottom ?? 0
