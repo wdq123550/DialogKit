@@ -6,135 +6,135 @@ import Foundation
 import SwiftUI
 import Observation
 
-// MARK: - DialogPresentable
+// MARK: - DLDialogPresentable
 
-/// 让 SwiftUI View 遵守此协议，即可交由 `DialogManager` 进行排队展示。
-public protocol DialogPresentable: View {
+/// 让 SwiftUI View 遵守此协议，即可交由 `DLDialogManager` 进行排队展示。
+public protocol DLDialogPresentable: View {
 
     /// 弹窗的外观与行为配置。
-    var dialogConfig: DialogConfiguration { get }
+    var dl_dialogConfig: DLDialogConfiguration { get }
 
     /// 在出场动画**开始之前**调用。
-    func willAppear()
+    func dl_willAppear()
     /// 在出场动画**完成之后**调用。
-    func didAppear()
+    func dl_didAppear()
     /// 在关闭动画**开始之前**调用。
-    func willDismiss()
+    func dl_willDismiss()
     /// 在关闭动画**完成之后**调用。
-    func didDismiss()
+    func dl_didDismiss()
 }
 
-public extension DialogPresentable {
-    var dialogConfig: DialogConfiguration { .init() }
-    func willAppear() {}
-    func didAppear() {}
-    func willDismiss() {}
-    func didDismiss() {}
+public extension DLDialogPresentable {
+    var dl_dialogConfig: DLDialogConfiguration { .init() }
+    func dl_willAppear() {}
+    func dl_didAppear() {}
+    func dl_willDismiss() {}
+    func dl_didDismiss() {}
 }
 
-// MARK: - DialogConfiguration
+// MARK: - DLDialogConfiguration
 
 /// 弹窗的完整配置，包括位置、转场、动画与遮罩颜色。
-public struct DialogConfiguration {
+public struct DLDialogConfiguration {
 
     /// 弹窗在屏幕上的停靠位置。
-    public var position: DialogPosition
+    public var dl_position: DLDialogPosition
 
     /// 弹窗的出场 / 退场转场效果。
-    public var transition: DialogTransition
+    public var dl_transition: DLDialogTransition
 
     /// 弹窗的动画曲线与时长。
-    public var animation: DialogAnimation
+    public var dl_animation: DLDialogAnimation
 
     /// 弹窗背后遮罩层的颜色（含透明度）。
-    public var dimmingColor: UIColor
+    public var dl_dimmingColor: UIColor
 
     public init(
-        position: DialogPosition = .center,
-        transition: DialogTransition = .init(),
-        animation: DialogAnimation = .init(),
-        dimmingColor: UIColor = .black.withAlphaComponent(0.8)
+        dl_position: DLDialogPosition = .dl_center,
+        dl_transition: DLDialogTransition = .init(),
+        dl_animation: DLDialogAnimation = .init(),
+        dl_dimmingColor: UIColor = .black.withAlphaComponent(0.8)
     ) {
-        self.position = position
-        self.transition = transition
-        self.animation = animation
-        self.dimmingColor = dimmingColor
+        self.dl_position = dl_position
+        self.dl_transition = dl_transition
+        self.dl_animation = dl_animation
+        self.dl_dimmingColor = dl_dimmingColor
     }
 }
 
-// MARK: - DialogPosition
+// MARK: - DLDialogPosition
 
 /// 弹窗在屏幕上的停靠位置。
-public enum DialogPosition: Equatable, Sendable {
-    /// 贴顶部显示；`safeAreaPadding` 为 `true` 时自动避开安全区域。
-    case top(safeAreaPadding: Bool = false)
+public enum DLDialogPosition: Equatable, Sendable {
+    /// 贴顶部显示；`dl_safeAreaPadding` 为 `true` 时自动避开安全区域。
+    case dl_top(dl_safeAreaPadding: Bool = false)
     /// 居中显示。
-    case center
-    /// 贴底部显示；`safeAreaPadding` 为 `true` 时自动避开安全区域。
-    case bottom(safeAreaPadding: Bool = false)
+    case dl_center
+    /// 贴底部显示；`dl_safeAreaPadding` 为 `true` 时自动避开安全区域。
+    case dl_bottom(dl_safeAreaPadding: Bool = false)
 }
 
-// MARK: - DialogTransition
+// MARK: - DLDialogTransition
 
 /// 弹窗出场与退场的转场配置。
-public struct DialogTransition: Equatable, Sendable {
+public struct DLDialogTransition: Equatable, Sendable {
 
     /// 出场时使用的转场方向。
-    public var appear: DialogTransitionEdge
+    public var dl_appear: DLDialogTransitionEdge
 
     /// 退场时使用的转场方向。
-    public var disappear: DialogTransitionEdge
+    public var dl_disappear: DLDialogTransitionEdge
 
     public init(
-        appear: DialogTransitionEdge = .centerScale,
-        disappear: DialogTransitionEdge = .centerScale
+        dl_appear: DLDialogTransitionEdge = .dl_centerScale,
+        dl_disappear: DLDialogTransitionEdge = .dl_centerScale
     ) {
-        self.appear = appear
-        self.disappear = disappear
+        self.dl_appear = dl_appear
+        self.dl_disappear = dl_disappear
     }
 }
 
-// MARK: - DialogTransitionEdge
+// MARK: - DLDialogTransitionEdge
 
 /// 单次转场（出场或退场）的动画方式。
-public enum DialogTransitionEdge: Equatable, Sendable {
+public enum DLDialogTransitionEdge: Equatable, Sendable {
     /// 从屏幕顶部滑入 / 滑出。
-    case top
+    case dl_top
     /// 从屏幕底部滑入 / 滑出。
-    case bottom
+    case dl_bottom
     /// 在中央以缩放方式出现 / 消失。
-    case centerScale
+    case dl_centerScale
 }
 
-// MARK: - DialogAnimation
+// MARK: - DLDialogAnimation
 
 /// 弹窗动画的曲线与时长配置。
-public struct DialogAnimation {
+public struct DLDialogAnimation {
 
     /// SwiftUI `Animation` 值，用于 `withAnimation`。
-    public var value: Animation
+    public var dl_value: Animation
 
-    /// 动画时长（秒），需与 `value` 中的时长保持一致。
-    public var duration: CGFloat
+    /// 动画时长（秒），需与 `dl_value` 中的时长保持一致。
+    public var dl_duration: CGFloat
 
     public init(
-        value: Animation = .easeInOut(duration: 0.25),
-        duration: CGFloat = 0.25
+        dl_value: Animation = .easeInOut(duration: 0.25),
+        dl_duration: CGFloat = 0.25
     ) {
-        self.value = value
-        self.duration = duration
+        self.dl_value = dl_value
+        self.dl_duration = dl_duration
     }
 }
 
-// MARK: - DialogWrapper
+// MARK: - DLDialogWrapper
 
 /// 内部包装器，为每个弹窗分配唯一 ID 以驱动 SwiftUI 差异更新。
-internal struct DialogWrapper: Identifiable {
+internal struct DLDialogWrapper: Identifiable {
     let id = UUID()
-    let content: any DialogPresentable
+    let dl_content: any DLDialogPresentable
 }
 
-// MARK: - DialogManager
+// MARK: - DLDialogManager
 
 /// 基于队列的弹窗管理器。
 ///
@@ -144,104 +144,104 @@ internal struct DialogWrapper: Identifiable {
 /// **基本用法：**
 /// ```swift
 /// ContentView()
-///     .overlay { DialogManager.shared.dialogLayer }
+///     .overlay { DLDialogManager.shared.dl_dialogLayer }
 ///
-/// DialogManager.shared.show(MyDialog())
+/// DLDialogManager.shared.dl_show(MyDialog())
 /// ```
 @MainActor
 @Observable
-public final class DialogManager {
+public final class DLDialogManager {
 
     /// 全局单例。
-    public static let shared = DialogManager()
+    public static let shared = DLDialogManager()
 
     /// 当前正在展示的弹窗包装器。
-    private(set) var currentWrapper: DialogWrapper?
+    private(set) var dl_currentWrapper: DLDialogWrapper?
 
     /// 等待展示的弹窗队列。
-    private var queue: [DialogWrapper] = []
+    private var dl_queue: [DLDialogWrapper] = []
 
     private init() {}
 }
 
 // MARK: - Public API
 
-public extension DialogManager {
+public extension DLDialogManager {
 
     /// 当前弹窗的动画时长；若无弹窗则返回默认值 `0.25`。
-    var currentAnimationDuration: CGFloat {
-        currentWrapper?.content.dialogConfig.animation.duration ?? 0.25
+    var dl_currentAnimationDuration: CGFloat {
+        dl_currentWrapper?.dl_content.dl_dialogConfig.dl_animation.dl_duration ?? 0.25
     }
 
     /// 当前是否有弹窗正在展示。
-    var isPresenting: Bool {
-        currentWrapper != nil
+    var dl_isPresenting: Bool {
+        dl_currentWrapper != nil
     }
 
     /// 将弹窗加入队列并展示。
     ///
     /// 如果当前已有弹窗正在展示，新弹窗将排队等待，直到前面的弹窗被关闭后自动展示。
-    /// - Parameter dialog: 要展示的弹窗视图（需遵守 `DialogPresentable`）。
-    func show(_ dialog: any DialogPresentable) {
-        let wrapper = DialogWrapper(content: dialog)
-        queue.append(wrapper)
-        if currentWrapper == nil {
-            showNext()
+    /// - Parameter dialog: 要展示的弹窗视图（需遵守 `DLDialogPresentable`）。
+    func dl_show(_ dialog: any DLDialogPresentable) {
+        let wrapper = DLDialogWrapper(dl_content: dialog)
+        dl_queue.append(wrapper)
+        if dl_currentWrapper == nil {
+            dl_showNext()
         }
     }
 
     /// 关闭当前弹窗并立即展示指定弹窗。
     ///
     /// 新弹窗会被插入队列最前方，当前弹窗关闭后立即展示。
-    /// 如果当前没有弹窗，则等同于调用 ``show(_:)``。
+    /// 如果当前没有弹窗，则等同于调用 ``dl_show(_:)``。
     /// - Parameter dialog: 要插队展示的弹窗视图。
-    func dismissCurrentAndShow(_ dialog: any DialogPresentable) {
-        guard currentWrapper != nil else {
-            show(dialog)
+    func dl_dismissCurrentAndShow(_ dialog: any DLDialogPresentable) {
+        guard dl_currentWrapper != nil else {
+            dl_show(dialog)
             return
         }
-        let wrapper = DialogWrapper(content: dialog)
-        queue.insert(wrapper, at: 0)
-        dismissCurrent()
+        let wrapper = DLDialogWrapper(dl_content: dialog)
+        dl_queue.insert(wrapper, at: 0)
+        dl_dismissCurrent()
     }
 
     /// 关闭当前正在展示的弹窗。
     ///
     /// 关闭后会自动展示队列中的下一个弹窗（如果有）。
-    func dismissCurrent() {
-        guard let wrapper = currentWrapper else { return }
-        let dialog = wrapper.content
+    func dl_dismissCurrent() {
+        guard let wrapper = dl_currentWrapper else { return }
+        let dialog = wrapper.dl_content
 
-        dialog.willDismiss()
+        dialog.dl_willDismiss()
 
-        withAnimation(dialog.dialogConfig.animation.value) {
-            currentWrapper = nil
+        withAnimation(dialog.dl_dialogConfig.dl_animation.dl_value) {
+            dl_currentWrapper = nil
         } completion: {
-            dialog.didDismiss()
+            dialog.dl_didDismiss()
             Task { @MainActor in
-                self.showNext()
+                self.dl_showNext()
             }
         }
     }
 
     /// 关闭当前弹窗并清空整个等待队列，不带动画。
-    func dismissAll() {
-        queue.removeAll()
+    func dl_dismissAll() {
+        dl_queue.removeAll()
 
-        guard let wrapper = currentWrapper else { return }
-        let dialog = wrapper.content
+        guard let wrapper = dl_currentWrapper else { return }
+        let dialog = wrapper.dl_content
 
-        dialog.willDismiss()
-        currentWrapper = nil
-        dialog.didDismiss()
+        dialog.dl_willDismiss()
+        dl_currentWrapper = nil
+        dialog.dl_didDismiss()
     }
 
     /// 弹窗覆盖层视图，需挂载到应用根视图上。
     @ViewBuilder
-    var dialogLayer: some View {
+    var dl_dialogLayer: some View {
         Color.clear.overlay {
-            dimmingView.overlay {
-                contentView
+            dl_dimmingView.overlay {
+                dl_contentView
             }
         }
         .ignoresSafeArea()
@@ -250,92 +250,92 @@ public extension DialogManager {
 
 // MARK: - Private Implementation
 
-private extension DialogManager {
+private extension DLDialogManager {
 
     /// 从队列中取出下一个弹窗并以动画展示。
-    func showNext() {
-        guard !queue.isEmpty else { return }
-        let next = queue.removeFirst()
+    func dl_showNext() {
+        guard !dl_queue.isEmpty else { return }
+        let next = dl_queue.removeFirst()
 
-        next.content.willAppear()
+        next.dl_content.dl_willAppear()
 
-        withAnimation(next.content.dialogConfig.animation.value) {
-            self.currentWrapper = next
+        withAnimation(next.dl_content.dl_dialogConfig.dl_animation.dl_value) {
+            self.dl_currentWrapper = next
         } completion: {
-            self.currentWrapper?.content.didAppear()
+            self.dl_currentWrapper?.dl_content.dl_didAppear()
         }
     }
 
     /// 半透明遮罩背景。
     @ViewBuilder
-    var dimmingView: some View {
-        if let wrapper = currentWrapper {
-            Color(uiColor: wrapper.content.dialogConfig.dimmingColor)
+    var dl_dimmingView: some View {
+        if let wrapper = dl_currentWrapper {
+            Color(uiColor: wrapper.dl_content.dl_dialogConfig.dl_dimmingColor)
                 .ignoresSafeArea()
         }
     }
 
     /// 弹窗内容视图，包含转场、位置和内边距。
     @ViewBuilder
-    var contentView: some View {
-        if let wrapper = currentWrapper {
-            AnyView(wrapper.content)
+    var dl_contentView: some View {
+        if let wrapper = dl_currentWrapper {
+            AnyView(wrapper.dl_content)
                 .id(wrapper.id)
-                .padding(paddingInsets(for: wrapper.content))
-                .transition(buildTransition(for: wrapper.content))
+                .padding(dl_paddingInsets(for: wrapper.dl_content))
+                .transition(dl_buildTransition(for: wrapper.dl_content))
                 .frame(
                     maxWidth: .infinity,
                     maxHeight: .infinity,
-                    alignment: alignment(for: wrapper.content)
+                    alignment: dl_alignment(for: wrapper.dl_content)
                 )
         }
     }
 
     /// 根据配置生成非对称转场（出场与退场可不同）。
-    func buildTransition(for dialog: any DialogPresentable) -> AnyTransition {
-        let t = dialog.dialogConfig.transition
+    func dl_buildTransition(for dialog: any DLDialogPresentable) -> AnyTransition {
+        let t = dialog.dl_dialogConfig.dl_transition
         return .asymmetric(
-            insertion: swiftUITransition(t.appear),
-            removal: swiftUITransition(t.disappear)
+            insertion: dl_swiftUITransition(t.dl_appear),
+            removal: dl_swiftUITransition(t.dl_disappear)
         )
     }
 
-    /// 将 `DialogTransitionEdge` 映射为 SwiftUI `AnyTransition`。
-    func swiftUITransition(_ edge: DialogTransitionEdge) -> AnyTransition {
+    /// 将 `DLDialogTransitionEdge` 映射为 SwiftUI `AnyTransition`。
+    func dl_swiftUITransition(_ edge: DLDialogTransitionEdge) -> AnyTransition {
         switch edge {
-        case .top: .move(edge: .top)
-        case .bottom: .move(edge: .bottom)
-        case .centerScale: .scale
+        case .dl_top: .move(edge: .top)
+        case .dl_bottom: .move(edge: .bottom)
+        case .dl_centerScale: .scale
         }
     }
 
-    /// 将 `DialogPosition` 映射为 SwiftUI `Alignment`。
-    func alignment(for dialog: any DialogPresentable) -> Alignment {
-        switch dialog.dialogConfig.position {
-        case .center: .center
-        case .top: .top
-        case .bottom: .bottom
+    /// 将 `DLDialogPosition` 映射为 SwiftUI `Alignment`。
+    func dl_alignment(for dialog: any DLDialogPresentable) -> Alignment {
+        switch dialog.dl_dialogConfig.dl_position {
+        case .dl_center: .center
+        case .dl_top: .top
+        case .dl_bottom: .bottom
         }
     }
 
-    /// 根据 `DialogPosition` 计算安全区域内边距。
-    func paddingInsets(for dialog: any DialogPresentable) -> EdgeInsets {
-        switch dialog.dialogConfig.position {
-        case .top(let safe): safe ? .init(top: safeAreaTop, leading: 0, bottom: 0, trailing: 0) : .init()
-        case .bottom(let safe): safe ? .init(top: 0, leading: 0, bottom: safeAreaBottom, trailing: 0) : .init()
-        case .center: .init()
+    /// 根据 `DLDialogPosition` 计算安全区域内边距。
+    func dl_paddingInsets(for dialog: any DLDialogPresentable) -> EdgeInsets {
+        switch dialog.dl_dialogConfig.dl_position {
+        case .dl_top(let safe): safe ? .init(top: dl_safeAreaTop, leading: 0, bottom: 0, trailing: 0) : .init()
+        case .dl_bottom(let safe): safe ? .init(top: 0, leading: 0, bottom: dl_safeAreaBottom, trailing: 0) : .init()
+        case .dl_center: .init()
         }
     }
 
     /// 当前 key window 的顶部安全区域高度。
-    var safeAreaTop: CGFloat {
+    var dl_safeAreaTop: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.top ?? 0
     }
 
     /// 当前 key window 的底部安全区域高度。
-    var safeAreaBottom: CGFloat {
+    var dl_safeAreaBottom: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.bottom ?? 0
