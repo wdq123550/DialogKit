@@ -106,12 +106,12 @@ public enum DialogTransitionEdge: Equatable, Sendable {
     case centerScale
 }
 
-// MARK: - DialogAnimation
+// MARK: - DialogAnimationItem
 
-/// 弹窗动画的曲线与时长配置。
-public struct DialogAnimation {
+/// 单个动画阶段（出场或退场）的曲线与时长。
+public struct DialogAnimationItem {
 
-    /// SwiftUI `Animation` 值，用于 `withAnimation`。
+    /// SwiftUI `Animation` 值。
     public var value: Animation
 
     /// 动画时长（秒），需与 `value` 中的时长保持一致。
@@ -123,6 +123,26 @@ public struct DialogAnimation {
     ) {
         self.value = value
         self.duration = duration
+    }
+}
+
+// MARK: - DialogAnimation
+
+/// 弹窗出场与退场的动画配置。
+public struct DialogAnimation {
+
+    /// 出场动画。
+    public var appear: DialogAnimationItem
+
+    /// 退场动画。
+    public var disappear: DialogAnimationItem
+
+    public init(
+        appear: DialogAnimationItem = .init(),
+        disappear: DialogAnimationItem = .init()
+    ) {
+        self.appear = appear
+        self.disappear = disappear
     }
 }
 
@@ -170,7 +190,7 @@ public extension DialogManager {
 
     /// 当前弹窗的动画时长；若无弹窗则返回默认值 `0.25`。
     var currentAnimationDuration: CGFloat {
-        currentWrapper?.content.dialogConfig.animation.duration ?? 0.25
+        currentWrapper?.content.dialogConfig.animation.appear.duration ?? 0.25
     }
 
     /// 当前是否有弹窗正在展示。
@@ -214,7 +234,7 @@ public extension DialogManager {
 
         dialog.willDismiss()
 
-        withAnimation(dialog.dialogConfig.animation.value) {
+        withAnimation(dialog.dialogConfig.animation.disappear.value) {
             currentWrapper = nil
         } completion: {
             dialog.didDismiss()
@@ -259,7 +279,7 @@ private extension DialogManager {
 
         next.content.willAppear()
 
-        withAnimation(next.content.dialogConfig.animation.value) {
+        withAnimation(next.content.dialogConfig.animation.appear.value) {
             self.currentWrapper = next
         } completion: {
             self.currentWrapper?.content.didAppear()
