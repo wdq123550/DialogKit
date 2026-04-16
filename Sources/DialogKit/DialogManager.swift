@@ -106,12 +106,12 @@ public enum DLDialogTransitionEdge: Equatable, Sendable {
     case dl_centerScale
 }
 
-// MARK: - DLDialogAnimation
+// MARK: - DLDialogAnimationItem
 
-/// 弹窗动画的曲线与时长配置。
-public struct DLDialogAnimation {
+/// 单个动画阶段（出场或退场）的曲线与时长。
+public struct DLDialogAnimationItem {
 
-    /// SwiftUI `Animation` 值，用于 `withAnimation`。
+    /// SwiftUI `Animation` 值。
     public var dl_value: Animation
 
     /// 动画时长（秒），需与 `dl_value` 中的时长保持一致。
@@ -123,6 +123,26 @@ public struct DLDialogAnimation {
     ) {
         self.dl_value = dl_value
         self.dl_duration = dl_duration
+    }
+}
+
+// MARK: - DLDialogAnimation
+
+/// 弹窗出场与退场的动画配置。
+public struct DLDialogAnimation {
+
+    /// 出场动画。
+    public var dl_appear: DLDialogAnimationItem
+
+    /// 退场动画。
+    public var dl_disappear: DLDialogAnimationItem
+
+    public init(
+        dl_appear: DLDialogAnimationItem = .init(),
+        dl_disappear: DLDialogAnimationItem = .init()
+    ) {
+        self.dl_appear = dl_appear
+        self.dl_disappear = dl_disappear
     }
 }
 
@@ -170,7 +190,7 @@ public extension DLDialogManager {
 
     /// 当前弹窗的动画时长；若无弹窗则返回默认值 `0.25`。
     var dl_currentAnimationDuration: CGFloat {
-        dl_currentWrapper?.dl_content.dl_dialogConfig.dl_animation.dl_duration ?? 0.25
+        dl_currentWrapper?.dl_content.dl_dialogConfig.dl_animation.dl_appear.dl_duration ?? 0.25
     }
 
     /// 当前是否有弹窗正在展示。
@@ -214,7 +234,7 @@ public extension DLDialogManager {
 
         dialog.dl_willDismiss()
 
-        withAnimation(dialog.dl_dialogConfig.dl_animation.dl_value) {
+        withAnimation(dialog.dl_dialogConfig.dl_animation.dl_disappear.dl_value) {
             dl_currentWrapper = nil
         } completion: {
             dialog.dl_didDismiss()
@@ -259,7 +279,7 @@ private extension DLDialogManager {
 
         next.dl_content.dl_willAppear()
 
-        withAnimation(next.dl_content.dl_dialogConfig.dl_animation.dl_value) {
+        withAnimation(next.dl_content.dl_dialogConfig.dl_animation.dl_appear.dl_value) {
             self.dl_currentWrapper = next
         } completion: {
             self.dl_currentWrapper?.dl_content.dl_didAppear()
