@@ -257,6 +257,9 @@ public extension DLDialogManager {
     }
 
     /// 弹窗覆盖层视图，需挂载到应用根视图上。
+    ///
+    /// 仅忽略 `.container` 安全区域（导航栏 / TabBar / 刘海等），保留对 `.keyboard` 的避让。
+    /// 这样键盘弹起时，SwiftUI 会自动将弹窗内容上推以避免被键盘遮挡，业务侧无需手动处理。
     @ViewBuilder
     var dl_dialogLayer: some View {
         Color.clear.overlay {
@@ -264,7 +267,7 @@ public extension DLDialogManager {
                 dl_contentView
             }
         }
-        .ignoresSafeArea()
+        .ignoresSafeArea(.container, edges: .all)
     }
 }
 
