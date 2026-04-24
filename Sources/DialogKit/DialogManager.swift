@@ -47,6 +47,12 @@ public struct DLDialogConfiguration {
     public var dl_animation: DLDialogAnimation
 
     /// 弹窗背后遮罩层的颜色（含透明度）。
+    ///
+    /// - 设为 `.clear`（即 alpha 通道为 0）有特殊语义：表示遮罩**不拦截点击**，
+    ///   点击 dialog 主体之外的区域会穿透到下层视图。此时 `dl_dismissOnBackgroundTap`
+    ///   不生效。
+    /// - 如果想让背景看起来透明但又**不希望穿透**，请使用任意颜色 + 极低不透明度
+    ///   （例如 `.black.withAlphaComponent(0.01)`）。
     public var dl_dimmingColor: UIColor
 
     /// 弹窗展示后自动关闭的延时（秒）。
@@ -65,6 +71,8 @@ public struct DLDialogConfiguration {
     ///   ``DLDialogManager/dl_dismissCurrent()``。
     /// - 点击 dialog 主体本身不会触发关闭（前提是 dialog 视图有自己的背景，
     ///   这是 SwiftUI 弹窗的常规做法）。
+    /// - **当 `dl_dimmingColor` 为 `.clear` 时本配置不生效**：此时遮罩本身不
+    ///   拦截点击事件（点击会穿透），自然也无从触发关闭。
     public var dl_dismissOnBackgroundTap: Bool
 
     public init(
@@ -333,19 +341,28 @@ private extension DLDialogManager {
 
     /// 半透明遮罩背景。
     ///
-    /// 当 `dl_dismissOnBackgroundTap == true` 时，给遮罩附加点击手势以关闭当前弹窗。
-    /// 由于 dialog 内容是该遮罩的 `.overlay`，点击 dialog 主体（带背景）会被其
-    /// 自身吸收、不会冒泡到此手势，因此只有空白区域的点击才会触发关闭。
+    /// - 当 `dl_dimmingColor` 为 `.clear`（alpha == 0）时：遮罩 `.allowsHitTesting(false)`，
+    ///   点击会穿透到下层视图，且不挂任何点击手势；`dl_dismissOnBackgroundTap` 在此场景下被忽略。
+    /// - 当 `dl_dimmingColor` 非 `.clear` 时：仅在 `dl_dismissOnBackgroundTap == true` 才挂
+    ///   点击手势。dialog 内容作为该遮罩的 `.overlay` 位于其上方，点击 dialog 主体（带背景）
+    ///   会被其自身吸收、不会冒泡到此手势，因此只有空白区域的点击才会触发关闭。
     @ViewBuilder
     var dl_dimmingView: some View {
         if let wrapper = dl_currentWrapper {
-            Color(uiColor: wrapper.dl_content.dl_dialogConfig.dl_dimmingColor)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture { [weak self] in
-                    guard wrapper.dl_content.dl_dialogConfig.dl_dismissOnBackgroundTap else { return }
-                    self?.dl_dismissCurrent()
-                }
+            let config = wrapper.dl_content.dl_dialogConfig
+            if config.dl_dimmingColor.dl_isEffectivelyClear {
+                Color.clear
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            } else {
+                Color(uiColor: config.dl_dimmingColor)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { [weak self] in
+                        guard config.dl_dismissOnBackgroundTap else { return }
+                        self?.dl_dismissCurrent()
+                    }
+            }
         }
     }
 
@@ -413,5 +430,19 @@ private extension DLDialogManager {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.bottom ?? 0
+    }
+}
+
+// MARK: - UIColor + DialogKit
+
+private extension UIColor {
+
+    /// 该颜色是否"完全透明"（alpha 通道为 0）。
+    ///
+    /// 用于判断遮罩层是否应让点击穿透到下层视图。使用 `cgColor.alpha` 而非
+    /// `getRed(_:green:blue:alpha:)` 以兼容非 RGB 色彩空间（例如 `UIColor.clear`
+    /// 实际处于灰度色彩空间）。
+    var dl_isEffectivelyClear: Bool {
+        cgColor.alpha == 0
     }
 }
