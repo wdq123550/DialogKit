@@ -49,16 +49,38 @@ public struct DialogConfiguration {
     /// 弹窗背后遮罩层的颜色（含透明度）。
     public var dimmingColor: UIColor
 
+    /// 弹窗展示后自动关闭的延时（秒）。
+    ///
+    /// - 设为 `nil`（默认）或 `<= 0` 表示不自动关闭。
+    /// - 计时从弹窗的**出场动画完成之后**（即 `didAppear` 触发后）开始。
+    /// - 计时仅作用于配置了该值的那个弹窗实例本身：若在计时结束前该弹窗已被
+    ///   主动关闭、被插队替换或被 ``DialogManager/dismissAll()`` 清空，
+    ///   计时器不会误关后续展示的其它弹窗。
+    public var autoDismissDelay: TimeInterval?
+
+    /// 是否允许点击弹窗背后的遮罩区域（即 dialog 主体之外的空白处）来关闭弹窗。
+    ///
+    /// - 默认 `false`，保持原有行为：遮罩不响应点击。
+    /// - 设为 `true` 时，点击 dialog 主体之外的任意位置会触发
+    ///   ``DialogManager/dismissCurrent()``。
+    /// - 点击 dialog 主体本身不会触发关闭（前提是 dialog 视图有自己的背景，
+    ///   这是 SwiftUI 弹窗的常规做法）。
+    public var dismissOnBackgroundTap: Bool
+
     public init(
         position: DialogPosition = .center,
         transition: DialogTransition = .init(),
         animation: DialogAnimation = .init(),
-        dimmingColor: UIColor = .black.withAlphaComponent(0.8)
+        dimmingColor: UIColor = .black.withAlphaComponent(0.8),
+        autoDismissDelay: TimeInterval? = nil,
+        dismissOnBackgroundTap: Bool = false
     ) {
         self.position = position
         self.transition = transition
         self.animation = animation
         self.dimmingColor = dimmingColor
+        self.autoDismissDelay = autoDismissDelay
+        self.dismissOnBackgroundTap = dismissOnBackgroundTap
     }
 }
 
@@ -286,15 +308,44 @@ private extension DialogManager {
             self.currentWrapper = next
         } completion: {
             self.currentWrapper?.content.didAppear()
+            self.scheduleAutoDismissIfNeeded(for: next)
+        }
+    }
+
+    /// 若弹窗配置了 `autoDismissDelay`，在出场动画完成后启动一次性计时器。
+    ///
+    /// 计时结束时会校验当前展示的 wrapper 是否仍是同一个实例（通过 `id` 比对），
+    /// 以避免在该弹窗已被提前关闭、替换或清空后误关掉后续的其它弹窗。
+    func scheduleAutoDismissIfNeeded(for wrapper: DialogWrapper) {
+        guard
+            let delay = wrapper.content.dialogConfig.autoDismissDelay,
+            delay > 0
+        else { return }
+
+        let targetID = wrapper.id
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self else { return }
+            guard self.currentWrapper?.id == targetID else { return }
+            self.dismissCurrent()
         }
     }
 
     /// 半透明遮罩背景。
+    ///
+    /// 当 `dismissOnBackgroundTap == true` 时，给遮罩附加点击手势以关闭当前弹窗。
+    /// 由于 dialog 内容是该遮罩的 `.overlay`，点击 dialog 主体（带背景）会被其
+    /// 自身吸收、不会冒泡到此手势，因此只有空白区域的点击才会触发关闭。
     @ViewBuilder
     var dimmingView: some View {
         if let wrapper = currentWrapper {
             Color(uiColor: wrapper.content.dialogConfig.dimmingColor)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { [weak self] in
+                    guard wrapper.content.dialogConfig.dismissOnBackgroundTap else { return }
+                    self?.dismissCurrent()
+                }
         }
     }
 
