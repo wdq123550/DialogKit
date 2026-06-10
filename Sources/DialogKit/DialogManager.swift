@@ -120,6 +120,9 @@ public extension DialogManager {
             }
         }
         .ignoresSafeArea(.container, edges: .all)
+        // 无弹窗时整层显式放行触摸，避免依赖 Color.clear 的隐式命中测试行为；
+        // 有弹窗时再交由 dimmingView 决定是否拦截（透明遮罩仍可穿透）。
+        .allowsHitTesting(isPresenting)
     }
 }
 
