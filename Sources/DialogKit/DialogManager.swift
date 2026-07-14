@@ -91,6 +91,10 @@ public extension DialogManager {
         } completion: {
             dialog.didDismiss()
             Task { @MainActor in
+                // 关闭动画期间 currentWrapper 已被置空，若此时又有新弹窗 show 进来，
+                // 它会「立即」showNext 占位。这里的延迟回调必须先判空，否则会二次
+                // showNext 把刚占位的弹窗直接盖掉（一闪而过）。
+                guard self.currentWrapper == nil else { return }
                 self.showNext()
             }
         }
