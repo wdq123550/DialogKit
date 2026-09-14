@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "swiftuiplus",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wdq123550/SwiftUIPlus.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "43336455300defbf8bab81838dac2cadfda82102"
+      }
+    }
+  ],
+  "version" : 2
+}
