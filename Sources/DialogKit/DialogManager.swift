@@ -1,10 +1,11 @@
 // DialogManager.swift
 // A lightweight, queue-based dialog presentation system for SwiftUI.
-// Requires iOS 17+, Swift 5.9+ (uses @Observable and Animatable-driven animation completion).
+// Requires iOS 17+, Swift 5.9+（@Observable + SwiftUIPlus.onAnimationCompleted）。
 
 import Foundation
 import SwiftUI
 import Observation
+import SwiftUIPlus
 
 // MARK: - DialogManager
 
@@ -42,8 +43,8 @@ public final class DialogManager {
     /// 动画令牌：每展示 / 收起一个弹窗 +1，作为 `dialogLayer` 上 `.animation(_:value:)` 的触发值。
     private var animationToken: Int = 0
 
-    /// 出场动画的进度锚点：每展示一个弹窗 +1，由动画观察器跟随渲染逐帧推进，
-    /// 推进到该值即代表出场动画「真的画完了」（见 ``AnimationCompletionObserver``）。
+    /// 出场动画的进度锚点：每展示一个弹窗 +1，交给 `dialogLayer` 上的
+    /// `onAnimationCompleted`（SwiftUIPlus）跟随渲染逐帧推进，推进到该值即代表出场动画真的画完了。
     private var appearProgress: CGFloat = 0
 
     /// 退场动画的进度锚点：每收起一个弹窗 +1，语义同 ``appearProgress``。
@@ -147,16 +148,17 @@ public extension DialogManager {
         // 无弹窗时整层显式放行触摸，避免依赖 Color.clear 的隐式命中测试行为；
         // 有弹窗时再交由 dimmingView 决定是否拦截（透明遮罩仍可穿透）。
         .allowsHitTesting(isPresenting)
-        // 两个观察器挂在「常驻」的覆盖层上（不随弹窗插入 / 移除而重建），
+        // 两个完成回调挂在「常驻」的覆盖层上（不随弹窗插入 / 移除而重建），
         // 这样进度值的变化才有上一帧可供插值，动画才能被正常观察到。
+        // 用 SwiftUIPlus.onAnimationCompleted：跟渲染插值走，不走 withAnimation 的 completion 事务。
         // ⚠️ 位置必须在下面 `.animation` 的「内侧」（上游）：只有落在隐式动画作用域内，
         // 进度值才会被逐帧插值；挂到 `.animation` 外侧会一步跳到终值、当场误报动画完成。
-        .modifier(AnimationCompletionObserver(observedValue: appearProgress) {
+        .onAnimationCompleted(for: appearProgress) {
             self.handleAppearAnimationFinished()
-        })
-        .modifier(AnimationCompletionObserver(observedValue: dismissProgress) {
+        }
+        .onAnimationCompleted(for: dismissProgress) {
             self.handleDismissAnimationFinished()
-        })
+        }
         // 用隐式动画取代 withAnimation：动画就此归属于本层视图，而不是由调用方的 mutation
         // transaction 持有。业务页面在同一拍里发生大规模重建时，SwiftUI 会在原事务之外重新
         // 提交终点状态，那会把由 withAnimation 持有的在飞动画整个掐断——弹窗直接跳到终点、
@@ -333,63 +335,6 @@ private extension DialogManager {
         UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow }
             .first?.safeAreaInsets.bottom ?? 0
-    }
-}
-
-// MARK: - AnimationCompletionObserver
-
-/// 「动画真的画完了」的观察器：跟随 SwiftUI 的渲染时钟，而不是挂钟计时。
-///
-/// 原理：SwiftUI 在动画的每一帧把 `animatableData` 往目标值推进，并在画到终态那一帧把它设成
-/// 目标值。帧由渲染驱动，所以这个信号同时避开了另外两种写法各自的坑：
-/// - `Task.sleep` 按动画时长计时：那是挂钟，主线程卡顿时时间到了画面却还没画完，回调会提前
-///   打出去（此时弹窗内依赖布局的数据尚未就绪）。观察器卡顿时跟着一起卡，只会晚、不会早。
-/// - `withAnimation(_:completion:)` 的 completion：动画被外部重建掐断后它不结算，会一直挂着
-///   不回调。观察器即便在「动画被掐断、直接跳终态」时也会立刻收到一次终值，因此绝不会挂死。
-///
-/// 用法上有两条硬要求，违反任意一条都会退化成「立刻误报完成」：
-/// 1. 必须挂在**常驻**视图上，不能随被观察的内容一起插入 / 移除——新挂载的实例首帧就等于目标值，
-///    等不到动画；
-/// 2. 必须落在驱动动画的 `.animation(_:value:)` 的**内侧**（上游），否则进度值不被插值，会一步
-///    跳到终值。
-private struct AnimationCompletionObserver: ViewModifier, Animatable {
-
-    /// SwiftUI 逐帧推进的动画值；等于 `targetValue` 即代表已画到终态。
-    var animatableData: CGFloat {
-        didSet { notifyIfFinished() }
-    }
-
-    /// 本次动画的目标值（构造时固定，不参与插值）。
-    private let targetValue: CGFloat
-
-    /// 画到终态时的回调。
-    private let onFinished: () -> Void
-
-    /// 初始化：传入当前要观察的进度值与动画结束回调。
-    init(observedValue: CGFloat, onFinished: @escaping () -> Void) {
-        self.animatableData = observedValue
-        self.targetValue = observedValue
-        self.onFinished = onFinished
-    }
-
-    /// 本观察器不改变视图外观，原样透传。
-    func body(content: Content) -> some View {
-        content
-    }
-
-    /// 推进到终态才回调；派发到下一个主线程周期，避免在视图更新过程中直接改状态。
-    ///
-    /// 这里刻意用 `DispatchQueue.main.async`，不要「顺手」换成 Swift Concurrency：本方法是在
-    /// SwiftUI 的渲染 / 布局周期内部被调用的，`MainActor.run` 在已处于主线程时可能同步执行、
-    /// 跳不出当前计算周期，`Task { @MainActor in }` 走协作式调度、落点由 executor 决定，
-    /// 都不保证是主运行循环的下一拍。而我们要的正是「明确推迟到下一拍」，以稳妥避开
-    /// Publishing changes from within view updates 警告。
-    private func notifyIfFinished() {
-        guard animatableData == targetValue else { return }
-        let callback = onFinished
-        DispatchQueue.main.async {
-            callback()
-        }
     }
 }
 
