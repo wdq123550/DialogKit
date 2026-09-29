@@ -56,6 +56,12 @@ public final class DialogManager {
     /// 等待退场动画结束后回调 `didDismiss` 的弹窗（一次性，取出即清空）。
     @ObservationIgnored private var pendingDismissDialog: (any DialogPresentable)?
 
+    /// 上一个弹窗的退场动画是否还没播完。
+    ///
+    /// 与 ``pendingDismissDialog`` 同时变化，但它必须可被观察：最后一个弹窗退场完毕时，
+    /// 其它可观察属性都不会再变，外部只能靠它得知 ``isIdle`` 变成了 `true`。
+    private var isDismissAnimating = false
+
     private init() {}
 }
 
@@ -71,6 +77,15 @@ public extension DialogManager {
     /// 当前是否有弹窗正在展示。
     var isPresenting: Bool {
         currentWrapper != nil
+    }
+
+    /// 弹窗队列是否完全空闲：没有弹窗在展示、没有弹窗在排队、上一个弹窗的退场动画也已播完。
+    ///
+    /// 一个弹窗换成下一个时（``dismissCurrentAndShow(_:)``，或先 ``show(_:)`` 排队再 ``dismissCurrent()``），
+    /// 退场动画期间 ``isPresenting`` 已是 `false`、下一个仍在排队。要判断「这一串弹窗都收完了」
+    /// 必须看本属性，不能只看 ``isPresenting``。
+    var isIdle: Bool {
+        currentWrapper == nil && queue.isEmpty && isDismissAnimating == false
     }
 
     /// 将弹窗加入队列并展示。
@@ -110,6 +125,7 @@ public extension DialogManager {
         dialog.willDismiss()
 
         pendingDismissDialog = dialog
+        isDismissAnimating = true
         // 先备好本轮曲线，再动令牌与内容：三者在同一次状态更新里生效，隐式动画会读到新曲线。
         activeAnimation = dialog.dialogConfig.animation.disappear.value
         animationToken += 1
@@ -124,6 +140,7 @@ public extension DialogManager {
         // 避免此刻可能仍在飞的动画观察器稍后再补发一次 didAppear / didDismiss。
         pendingAppearWrapper = nil
         pendingDismissDialog = nil
+        isDismissAnimating = false
 
         guard let wrapper = currentWrapper else { return }
         let dialog = wrapper.content
@@ -217,6 +234,7 @@ private extension DialogManager {
     func handleDismissAnimationFinished() {
         guard let dialog = pendingDismissDialog else { return }
         pendingDismissDialog = nil
+        isDismissAnimating = false
         dialog.didDismiss()
         // 关闭动画期间 currentWrapper 已被置空，若此时又有新弹窗 show 进来，
         // 它会「立即」showNext 占位。这里必须先判空，否则会二次 showNext
