@@ -53,11 +53,14 @@ public final class DialogManager {
     /// 等待出场动画结束后回调 `didAppear` 的弹窗（一次性，取出即清空，避免重复回调）。
     @ObservationIgnored private var pendingAppearWrapper: DialogWrapper?
 
-    /// 等待退场动画结束后回调 `didDismiss` 的弹窗（一次性，退场动画播完时取出并清空）。
+    /// 按收起顺序排着、等待退场动画结束后回调 `didDismiss` 的弹窗（退场动画播完时全部取出并清空）。
+    ///
+    /// 要用列表：一个弹窗的退场动画还没播完，又有弹窗展示并收起时，只留一个位置会把前一个覆盖掉，
+    /// 它的 `didDismiss` 就永远不来了。
     ///
     /// 它必须可被观察：最后一个弹窗退场完毕时只有它会变，外部靠它才能得知 ``isIdle`` 变成了 `true`。
     /// `dialogLayer` 不读它，所以不会引起额外刷新。
-    private var pendingDismissDialog: (any DialogPresentable)?
+    private var pendingDismissDialogs: [any DialogPresentable] = []
 
     private init() {}
 }
@@ -82,7 +85,7 @@ public extension DialogManager {
     /// 退场动画期间 ``isPresenting`` 已是 `false`、下一个仍在排队。要判断「这一串弹窗都收完了」
     /// 必须看本属性，不能只看 ``isPresenting``。
     var isIdle: Bool {
-        currentWrapper == nil && queue.isEmpty && pendingDismissDialog == nil
+        currentWrapper == nil && queue.isEmpty && pendingDismissDialogs.isEmpty
     }
 
     /// 将弹窗加入队列并展示。
@@ -121,7 +124,7 @@ public extension DialogManager {
 
         dialog.willDismiss()
 
-        pendingDismissDialog = dialog
+        pendingDismissDialogs.append(dialog)
         // 先备好本轮曲线，再动令牌与内容：三者在同一次状态更新里生效，隐式动画会读到新曲线。
         activeAnimation = dialog.dialogConfig.animation.disappear.value
         animationToken += 1
@@ -130,12 +133,17 @@ public extension DialogManager {
     }
 
     /// 关闭当前弹窗并清空整个等待队列，不带动画。
+    ///
+    /// 退场动画还没播完的弹窗，`didDismiss` 在这里先按收起顺序补发，再发当前弹窗的，
+    /// 不会因为全部关闭就丢掉。
     func dismissAll() {
         queue.removeAll()
-        // 本方法不带动画、收尾回调在下面直接发；先把两个待回调清空，
+        // 本方法不带动画、收尾回调在下面直接发；先把两个待回调取出清空，
         // 避免此刻可能仍在飞的动画观察器稍后再补发一次 didAppear / didDismiss。
         pendingAppearWrapper = nil
-        pendingDismissDialog = nil
+        let dismissingDialogs = pendingDismissDialogs
+        pendingDismissDialogs.removeAll()
+        dismissingDialogs.forEach { $0.didDismiss() }
 
         guard let wrapper = currentWrapper else { return }
         let dialog = wrapper.content
@@ -180,6 +188,30 @@ public extension DialogManager {
     }
 }
 
+// MARK: - Dismiss Animation Finished
+
+extension DialogManager {
+
+    /// 退场动画真的画完了 → 按收起顺序通知每个等待中的弹窗 `didDismiss`，再展示队列中的下一个弹窗。
+    ///
+    /// 连着收起两个弹窗时，动画观察器只在最后那段动画播完时回调一次，所以这里要把列表里的全部回调完。
+    /// 同 ``handleAppearAnimationFinished()``，不走 completion——否则收尾回调与队列推进都可能
+    /// 一直挂着，后面排队的弹窗永远出不来。
+    ///
+    /// 不是 private：单元测试要直接调用它，模拟「退场动画播完」这一刻。
+    func handleDismissAnimationFinished() {
+        guard pendingDismissDialogs.isEmpty == false else { return }
+        let dialogs = pendingDismissDialogs
+        pendingDismissDialogs.removeAll()
+        dialogs.forEach { $0.didDismiss() }
+        // 关闭动画期间 currentWrapper 已被置空，若此时又有新弹窗 show 进来，
+        // 它会「立即」showNext 占位。这里必须先判空，否则会二次 showNext
+        // 把刚占位的弹窗直接盖掉（一闪而过）。
+        guard currentWrapper == nil else { return }
+        showNext()
+    }
+}
+
 // MARK: - Private Implementation
 
 private extension DialogManager {
@@ -220,21 +252,6 @@ private extension DialogManager {
         guard currentWrapper?.id == wrapper.id else { return }
         wrapper.content.didAppear()
         scheduleAutoDismissIfNeeded(for: wrapper)
-    }
-
-    /// 退场动画真的画完了 → 通知弹窗 `didDismiss`，再展示队列中的下一个弹窗。
-    ///
-    /// 同 ``handleAppearAnimationFinished()``，不走 completion——否则收尾回调与队列推进都可能
-    /// 一直挂着，后面排队的弹窗永远出不来。
-    func handleDismissAnimationFinished() {
-        guard let dialog = pendingDismissDialog else { return }
-        pendingDismissDialog = nil
-        dialog.didDismiss()
-        // 关闭动画期间 currentWrapper 已被置空，若此时又有新弹窗 show 进来，
-        // 它会「立即」showNext 占位。这里必须先判空，否则会二次 showNext
-        // 把刚占位的弹窗直接盖掉（一闪而过）。
-        guard currentWrapper == nil else { return }
-        showNext()
     }
 
     /// 若弹窗配置了 `autoDismissDelay`，在出场动画完成后启动一次性计时器。
